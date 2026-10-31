@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GroundValue - Property Research Platform</title>
+
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#064E3B',
+                            dark: '#08634B',
+                            light: '#EAF2EF',
+                            soft: '#D1FAE5'
+                        },
+                        surface: {
+                            DEFAULT: '#FFFFFF',
+                            bg: '#F8FAF9',
+                            sidebar: '#FBFCFB'
+                        },
+                        text: {
+                            primary: '#131A25',
+                            secondary: '#687386',
+                            muted: '#9CA3AF'
+                        },
+                        border: {
+                            DEFAULT: '#E3E8EB',
+                            light: '#F3F4F6'
+                        },
+                        status: {
+                            completed: '#10B981',
+                            review: '#F59E0B',
+                            draft: '#6B7280'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #F8FAF9;
+            color: #131A25;
+        }
+
+        #root {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // API Base URL
+        const API_BASE = 'http://localhost:5001/api';
+
+        // Utility function for formatting currency
+        const formatRupees = (value) => {
+            if (!value) return '—';
+            const crores = value / 10000000;
+            return `₹${crores.toFixed(2)} Cr`;
+        };
+
+        // ========================================
+        // SIDEBAR COMPONENT
+        // ========================================
+        function Sidebar({ currentPage, onNavigate, theme, onToggleTheme }) {
+            return (
+                <div className="fixed left-0 top-0 h-full w-64 bg-surface-sidebar border-r border-border flex flex-col">
+                    {/* Logo */}
+                    <div className="p-6">
+                        <div className="flex items-center gap-3">
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                <path d="M16 2L4 8v12c0 7.5 5.2 11.5 12 14 6.8-2.5 12-6.5 12-14V8l-12-6z"
+                                      fill="#064E3B" stroke="#064E3B" strokeWidth="1.5"/>
+                                <path d="M11 16l3 3 7-8" stroke="white" strokeWidth="2"
+                                      strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <div className="text-lg font-bold text-text-primary">GroundValue</div>
+                        </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <nav className="flex-1 px-4">
+                        <button
+                            onClick={() => onNavigate('dashboard')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium mb-1 transition-colors ${
+                                currentPage === 'dashboard'
+                                    ? 'bg-primary-light text-primary'
+                                    : 'text-text-secondary hover:bg-gray-50'
+                            }`}
+                        >
+                            <span className="text-lg">🏠</span>
+                            <span>Dashboard</span>
+                        </button>
+
+                        <button
+                            onClick={() => onNavigate('new-research')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                currentPage === 'new-research'
+                                    ? 'bg-primary-light text-primary'
+                                    : 'text-text-secondary hover:bg-gray-50'
+                            }`}
+                        >
+                            <span className="text-lg">📋</span>
+                            <span>New Research</span>
+                        </button>
+                    </nav>
+
+                    {/* Theme Toggle */}
+                    <div className="p-4 border-t border-border">
+                        <button
+                            onClick={onToggleTheme}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-text-secondary hover:bg-gray-50 transition-colors"
+                        >
+                            <span className="text-lg">{theme === 'light' ? '🌙' : '☀️'}</span>
+                            <span>Light mode</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ========================================
+        // PROPERTY CARD COMPONENT
+        // ========================================
+        function PropertyCard({ property, onView }) {
+            const statusConfig = {
+                completed: { label: 'Completed', className: 'bg-primary-soft text-status-completed' },
+                running: { label: 'In Review', className: 'bg-yellow-100 text-status-review' },
+                draft: { label: 'Draft', className: 'bg-gray-100 text-status-draft' },
+                failed: { label: 'Draft', className: 'bg-gray-100 text-status-draft' }
+            };
+
+            const status = statusConfig[property.status] || statusConfig.draft;
+
+            return (
+                <div className="bg-white rounded-xl border border-border shadow-sm hover:shadow-md transition-all hover:-translate-y-1 cursor-pointer overflow-hidden">
+                    {/* Property Image */}
+                    <div className="relative h-48 bg-gradient-to-br from-primary-light to-surface-bg flex items-center justify-center">
+                        <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-medium ${status.className}`}>
+                            {status.label}
+                        </div>
+                        <svg width="120" height="100" viewBox="0 0 120 100" fill="none">
+                            <path d="M60 10 L10 35 L10 85 L110 85 L110 35 Z"
+                                  stroke="#064E3B" strokeWidth="2" fill="#EAF2EF"/>
+                            <rect x="45" y="50" width="30" height="35" fill="#064E3B" opacity="0.3"/>
+                            <rect x="25" y="45" width="15" height="15" fill="#064E3B" opacity="0.3"/>
+                            <rect x="80" y="45" width="15" height="15" fill="#064E3B" opacity="0.3"/>
+                        </svg>
+                    </div>
+
+                    {/* Property Content */}
+                    <div className="p-5">
+                        <h3 className="text-lg font-semibold text-text-primary mb-2">{property.name}</h3>
+                        <p className="text-sm text-text-secondary mb-4">📍 {property.location}</p>
+
+                        {/* Property Meta */}
+                        <div className="flex gap-4 text-sm text-text-secondary mb-4">
+                            <div className="flex items-center gap-1">
+                                <span>🏢</span> Apartment
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span>📐</span> {property.details.area} sq ft
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span>🛏️</span> {property.details.bedrooms} BHK
+                            </div>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="h-px bg-border my-4"></div>
+
+                        {/* Value */}
+                        <div>
+                            <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Estimated Value</div>
+                            <div className="text-2xl font-bold text-text-primary">
+                                {property.estimate ? property.estimate.formatted : '—'}
+                            </div>
+                            <div className="text-xs text-text-muted mt-2">
+                                Ref: GV-2024-{String(property.id).slice(0, 4).toUpperCase()}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* View Button */}
+                    <div className="px-5 pb-5">
+                        <button
+                            onClick={() => onView(property.id)}
+                            className="w-full px-4 py-2 bg-white border border-border rounded-lg text-sm font-medium text-text-primary hover:bg-gray-50 transition-colors"
+                        >
+                            View
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ========================================
+        // DASHBOARD PAGE
+        // ========================================
+        function Dashboard({ properties, onNavigate }) {
+            const [search, setSearch] = useState('');
+
+            const filteredProperties = properties.filter(prop =>
+                prop.name.toLowerCase().includes(search.toLowerCase()) ||
+                prop.location.toLowerCase().includes(search.toLowerCase())
+            );
+
+            return (
+                <div className="p-8">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-8">
+                        <div>
+                            <h1 className="text-4xl font-bold text-text-primary mb-2">Properties</h1>
+                            <p className="text-text-secondary">
+                                Search, analyze and manage property research and valuations across India.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => onNavigate('new-research')}
+                            className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors"
+                        >
+                            + New Research
+                        </button>
+                    </div>
+
+                    {/* Search and Filters */}
+                    <div className="grid grid-cols-4 gap-4 mb-8">
+                        <input
+                            type="text"
+                            placeholder="Search by property name, location or reference ID..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="col-span-2 px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light"
+                        />
+                        <select className="px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light">
+                            <option>All Cities</option>
+                        </select>
+                        <select className="px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light">
+                            <option>All Property Types</option>
+                        </select>
+                        <select className="px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light">
+                            <option>All Status</option>
+                        </select>
+                    </div>
+
+                    {/* Property Grid */}
+                    {filteredProperties.length === 0 ? (
+                        <div className="text-center py-12">
+                            <p className="text-text-secondary mb-4">🏢 No properties found</p>
+                            <button
+                                onClick={() => onNavigate('new-research')}
+                                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+                            >
+                                Create your first property
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-3 gap-6">
+                            {filteredProperties.map(property => (
+                                <PropertyCard
+                                    key={property.id}
+                                    property={property}
+                                    onView={(id) => onNavigate('property', id)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ========================================
+        // NEW RESEARCH PAGE
+        // ========================================
+        function NewResearch({ onNavigate, onCreate }) {
+            const [formData, setFormData] = useState({
+                name: '',
+                bedrooms: '',
+                area: 1200,
+                unit: 'sq ft',
+                basis: 'Built-up',
+                notes: '',
+                sources: []
+            });
+
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+
+                // Validation
+                if (!formData.name.trim()) {
+                    setError('Please enter a property name');
+                    return;
+                }
+                if (!formData.bedrooms) {
+                    setError('Please select number of bedrooms');
+                    return;
+                }
+                if (formData.sources.length === 0) {
+                    setError('Please select at least one data source');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    await onCreate(formData);
+                } catch (err) {
+                    setError(err.message);
+                    setLoading(false);
+                }
+            };
+
+            const toggleSource = (source) => {
+                setFormData(prev => ({
+                    ...prev,
+                    sources: prev.sources.includes(source)
+                        ? prev.sources.filter(s => s !== source)
+                        : prev.sources.length < 2
+                            ? [...prev.sources, source]
+                            : prev.sources
+                }));
+            };
+
+            return (
+                <div className="p-8">
+                    {/* Breadcrumb */}
+                    <p className="text-sm text-text-muted mb-2">Dashboard &gt; New Research</p>
+                    <h1 className="text-4xl font-bold text-text-primary mb-2">Create Property Research</h1>
+                    <p className="text-text-secondary mb-8">
+                        Run a comprehensive property research and valuation using multiple data sources across India.
+                    </p>
+
+                    <div className="grid grid-cols-[1.65fr,1fr] gap-8">
+                        {/* Form */}
+                        <div>
+                            <h2 className="text-xl font-semibold mb-6">Property Details</h2>
+
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                {/* Property Name */}
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Property Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                        placeholder="e.g. Prestige Lakeside Homes, Sobha Forest Edge"
+                                        className="w-full px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light"
+                                    />
+                                </div>
+
+                                {/* Location */}
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Location
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value="Electronic City, Bengaluru"
+                                        disabled
+                                        className="w-full px-4 py-2 border border-border rounded-lg text-sm bg-gray-50 text-text-secondary"
+                                    />
+                                </div>
+
+                                {/* Bedrooms and Area */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            Bedrooms
+                                        </label>
+                                        <select
+                                            value={formData.bedrooms}
+                                            onChange={(e) => setFormData({...formData, bedrooms: e.target.value})}
+                                            className="w-full px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light"
+                                        >
+                                            <option value="">Select bedrooms</option>
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            Area (sq ft)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={formData.area}
+                                            onChange={(e) => setFormData({...formData, area: parseInt(e.target.value)})}
+                                            className="w-full px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Unit and Basis */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            Unit
+                                        </label>
+                                        <select
+                                            value={formData.unit}
+                                            onChange={(e) => setFormData({...formData, unit: e.target.value})}
+                                            className="w-full px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light"
+                                        >
+                                            <option value="sq ft">sq ft</option>
+                                            <option value="sq m">sq m</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            Basis
+                                        </label>
+                                        <select
+                                            value={formData.basis}
+                                            onChange={(e) => setFormData({...formData, basis: e.target.value})}
+                                            className="w-full px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light"
+                                        >
+                                            <option value="Built-up">Built-up</option>
+                                            <option value="Carpet">Carpet</option>
+                                            <option value="Super Built-up">Super Built-up</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Notes */}
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Notes (Optional)
+                                    </label>
+                                    <textarea
+                                        value={formData.notes}
+                                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                                        placeholder="Add any specific details, preferences or context for this research..."
+                                        rows="4"
+                                        className="w-full px-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-light resize-none"
+                                    />
+                                </div>
+
+                                {/* Sources */}
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-2">Sources</h3>
+                                    <p className="text-sm text-text-secondary mb-4">Select up to 2 sources for this research.</p>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {['Transaction portals', 'Government records', 'Maps & locality data', 'Builder / listing sites'].map(source => (
+                                            <label key={source} className="flex items-start gap-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-gray-50">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.sources.includes(source)}
+                                                    onChange={() => toggleSource(source)}
+                                                    disabled={!formData.sources.includes(source) && formData.sources.length >= 2}
+                                                    className="mt-1"
+                                                />
+                                                <div>
+                                                    <div className="text-sm font-medium text-text-primary">{source}</div>
+                                                    <div className="text-xs text-text-muted mt-1">
+                                                        {source === 'Transaction portals' && 'Recent sale transactions from major property portals'}
+                                                        {source === 'Government records' && 'Official land and property records, where available'}
+                                                        {source === 'Maps & locality data' && 'Location insights, amenities, infrastructure and neighbourhood data'}
+                                                        {source === 'Builder / listing sites' && 'Current listings, pricing and project information from builders'}
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {error && (
+                                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                                        {error}
+                                    </div>
+                                )}
+
+                                {/* Submit Button */}
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full px-6 py-3 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+                                >
+                                    {loading ? 'Starting Research...' : 'Start Research'}
+                                </button>
+                            </form>
+                        </div>
+
+                        {/* Info Panel */}
+                        <div className="space-y-6">
+                            {/* Coverage Info */}
+                            <div className="p-6 bg-white border border-border rounded-lg">
+                                <div className="flex items-start gap-4 mb-4">
+                                    <div className="w-10 h-10 bg-primary-light rounded-lg flex items-center justify-center text-xl flex-shrink-0">
+                                        📍
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-text-primary mb-1">India-wide coverage</h3>
+                                        <p className="text-sm text-text-secondary leading-relaxed">
+                                            Residential and commercial properties across major cities and towns in India.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Data Sources Info */}
+                            <div className="p-6 bg-white border border-border rounded-lg">
+                                <div className="flex items-start gap-4 mb-4">
+                                    <div className="w-10 h-10 bg-primary-light rounded-lg flex items-center justify-center text-xl flex-shrink-0">
+                                        💾
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-text-primary mb-1">Multiple data sources</h3>
+                                        <p className="text-sm text-text-secondary leading-relaxed">
+                                            Combine data from transaction portals, government records, maps and builder listings for a comprehensive view.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* What You'll Get */}
+                            <div className="p-6 bg-white border border-border rounded-lg">
+                                <div className="flex items-start gap-4 mb-4">
+                                    <div className="w-10 h-10 bg-primary-light rounded-lg flex items-center justify-center text-xl flex-shrink-0">
+                                        📊
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-text-primary mb-2">What you'll get</h3>
+                                        <p className="text-sm text-text-secondary mb-3">A single research run will collect and analyze:</p>
+                                        <ul className="text-sm text-text-secondary space-y-2 leading-relaxed">
+                                            <li>• Recent transaction data and price trends</li>
+                                            <li>• Property and project details</li>
+                                            <li>• Location and locality insights</li>
+                                            <li>• Comparative market analysis</li>
+                                            <li>• Estimated property value range</li>
+                                            <li>• Key insights and recommendations</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ========================================
+        // PROPERTY WORKSPACE (Reference Screenshot 3)
+        // ========================================
+        function PropertyWorkspace({ propertyId, onNavigate }) {
+            const [property, setProperty] = useState(null);
+            const [runs, setRuns] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('overview');
+
+            useEffect(() => {
+                loadPropertyData();
+            }, [propertyId]);
+
+            const loadPropertyData = async () => {
+                try {
+                    const [propRes, runsRes] = await Promise.all([
+                        fetch(`${API_BASE}/properties/${propertyId}`),
+                        fetch(`${API_BASE}/properties/${propertyId}/runs`)
+                    ]);
+
+                    const propData = await propRes.json();
+                    const runsData = await runsRes.json();
+
+                    setProperty(propData);
+                    setRuns(runsData);
+                } catch (error) {
+                    console.error('Failed to load property:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="text-text-secondary">Loading property...</div>
+                    </div>
+                );
+            }
+
+            if (!property) {
+                return (
+                    <div className="p-8">
+                        <div className="text-red-600 mb-4">Property not found</div>
+                        <button
+                            onClick={() => onNavigate('dashboard')}
+                            className="px-4 py-2 bg-primary text-white rounded-lg"
+                        >
+                            ← Back to Dashboard
+                        </button>
+                    </div>
+                );
+            }
+
+            const latest = property.latest_research;
+
+            return (
+                <div className="p-8">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <button
+                                onClick={() => onNavigate('dashboard')}
+                                className="flex items-center gap-2 text-text-secondary hover:text-text-primary mb-4 transition-colors"
+                            >
+                                <span className="text-xl">←</span>
+                            </button>
+                            <h1 className="text-3xl font-bold text-text-primary mb-2">
+                                {property.name}
+                            </h1>
+                            <p className="text-sm text-text-secondary">
+                                {property.location} • Ref: GV-2024-{propertyId.slice(0, 4).toUpperCase()}
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                                ✏️ Edit
+                            </button>
+                            <button className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+                                📤 Export
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="flex gap-8 border-b border-border mb-8">
+                        {['Overview', 'History', 'Export'].map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab.toLowerCase())}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                                    activeTab === tab.toLowerCase()
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-text-secondary hover:text-text-primary'
+                                }`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Tab Content */}
+                    {activeTab === 'overview' && latest && (
+                        <div>
+                            {/* Three Metrics Cards */}
+                            <div className="grid grid-cols-3 gap-6 mb-8">
+                                <div className="bg-white border border-border rounded-lg p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <span style={{ color: '#10B981', fontSize: '20px' }}>●</span>
+                                        <span className="text-sm text-text-secondary">Status</span>
+                                    </div>
+                                    <div className="text-3xl font-bold text-text-primary mb-1">
+                                        {latest.status.charAt(0).toUpperCase() + latest.status.slice(1)}
+                                    </div>
+                                    <div className="text-xs text-text-muted">Research completed successfully</div>
+                                </div>
+
+                                <div className="bg-white border border-border rounded-lg p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <span style={{ color: '#064E3B', fontSize: '20px' }}>₹</span>
+                                        <span className="text-sm text-text-secondary">Estimated Value</span>
+                                    </div>
+                                    <div className="text-3xl font-bold text-text-primary mb-1">
+                                        {latest.estimate ? latest.estimate.formatted : 'Not estimated'}
+                                    </div>
+                                    <div className="text-xs text-text-muted">As on {latest.started?.slice(0, 10)}</div>
+                                </div>
+
+                                <div className="bg-white border border-border rounded-lg p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <span style={{ color: '#064E3B', fontSize: '20px' }}>📋</span>
+                                        <span className="text-sm text-text-secondary">Comps</span>
+                                    </div>
+                                    <div className="text-3xl font-bold text-text-primary mb-1">
+                                        {latest.comparisons_count || 0}
+                                    </div>
+                                    <div className="text-xs text-text-muted">Comparable properties analysed</div>
+                                </div>
+                            </div>
+
+                            {/* Two Column Layout */}
+                            <div className="grid grid-cols-[1.4fr,1fr] gap-8">
+                                {/* Property Details */}
+                                <div className="bg-white border border-border rounded-xl p-6">
+                                    <h3 className="text-xl font-semibold mb-6">Property Details</h3>
+
+                                    <div className="space-y-4">
+                                        <div className="flex items-start py-4 border-b border-border-light">
+                                            <div className="w-10 text-xl flex-shrink-0">📍</div>
+                                            <div className="flex-1">
+                                                <div className="text-sm text-text-secondary mb-1">Location</div>
+                                                <div className="text-base text-text-primary">{property.location}</div>
+                                            </div>
+                                            <a href="#" className="text-primary text-sm hover:underline">View on Map</a>
+                                        </div>
+
+                                        <div className="flex items-start py-4 border-b border-border-light">
+                                            <div className="w-10 text-xl flex-shrink-0">🏢</div>
+                                            <div className="flex-1">
+                                                <div className="text-sm text-text-secondary mb-1">Property Type</div>
+                                                <div className="text-base text-text-primary">Apartment</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start py-4 border-b border-border-light">
+                                            <div className="w-10 text-xl flex-shrink-0">📐</div>
+                                            <div className="flex-1">
+                                                <div className="text-sm text-text-secondary mb-1">Built-up Area</div>
+                                                <div className="text-base text-text-primary">{property.details.area} sq ft</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start py-4 border-b border-border-light">
+                                            <div className="w-10 text-xl flex-shrink-0">📏</div>
+                                            <div className="flex-1">
+                                                <div className="text-sm text-text-secondary mb-1">Basis</div>
+                                                <div className="text-base text-text-primary">{property.details.area_basis}</div>
+                                            </div>
+                                        </div>
+
+                                        {property.details.notes && (
+                                            <div className="flex items-start py-4">
+                                                <div className="w-10 text-xl flex-shrink-0">📝</div>
+                                                <div className="flex-1">
+                                                    <div className="text-sm text-text-secondary mb-1">Notes</div>
+                                                    <div className="text-base text-text-primary">{property.details.notes}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-3 mt-6">
+                                        <button className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+                                            + New Research
+                                        </button>
+                                        <button className="flex-1 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                                            View Details →
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Property Summary */}
+                                <div className="bg-white border border-border rounded-xl p-6">
+                                    <h3 className="text-xl font-semibold mb-6">Property Summary</h3>
+
+                                    {/* Property Image */}
+                                    <div className="w-full h-48 bg-gradient-to-br from-primary-light to-surface-bg rounded-lg flex items-center justify-center mb-6">
+                                        <svg width="100" height="80" viewBox="0 0 100 80" fill="none">
+                                            <path d="M50 5 L5 25 L5 70 L95 70 L95 25 Z" stroke="#064E3B" strokeWidth="2" fill="#EAF2EF"/>
+                                            <rect x="38" y="35" width="24" height="35" fill="#064E3B" opacity="0.3"/>
+                                        </svg>
+                                    </div>
+
+                                    <h4 className="font-semibold mb-2">{property.name}</h4>
+                                    <p className="text-sm text-text-secondary mb-4">{property.location}</p>
+
+                                    <div className="flex gap-4 text-sm text-text-secondary mb-6">
+                                        <span>🏢 Apartment</span>
+                                        <span>📐 {property.details.area} sq ft</span>
+                                        <span>🛏️ {property.details.bedrooms} BHK</span>
+                                    </div>
+
+                                    {/* Source Summary */}
+                                    <div className="border-t border-border pt-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="font-medium">Source Summary</h4>
+                                            <a href="#" className="text-primary text-sm hover:underline">View Sources →</a>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div>
+                                                <div className="text-2xl font-bold">12</div>
+                                                <div className="text-xs text-text-muted">Listings</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-2xl font-bold">5</div>
+                                                <div className="text-xs text-text-muted">Transactions</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-2xl font-bold">3</div>
+                                                <div className="text-xs text-text-muted">Reports</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Latest Valuation */}
+                                    {latest.estimate && (
+                                        <div className="border-t border-border pt-4 mt-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h4 className="font-medium">Latest Valuation Snapshot</h4>
+                                                <span className="text-xs text-text-muted">{latest.started?.slice(0, 10)}</span>
+                                            </div>
+                                            <div className="text-3xl font-bold mb-1">{latest.estimate.formatted}</div>
+                                            <div className="text-sm text-text-secondary">
+                                                Value range: {latest.estimate.min_value ? formatRupees(latest.estimate.min_value) : '—'} – {latest.estimate.max_value ? formatRupees(latest.estimate.max_value) : '—'}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Research History Section */}
+                            <div className="mt-8">
+                                <h3 className="text-xl font-semibold mb-4">Research History</h3>
+                                <div className="space-y-3">
+                                    {runs.slice(0, 5).map((run) => (
+                                        <div
+                                            key={run.id}
+                                            className="bg-white border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <div className="font-medium mb-1">
+                                                        {run.started} — Market analysis with updated comps
+                                                    </div>
+                                                    <div className="text-sm text-text-secondary">
+                                                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                                            run.status === 'completed' ? 'bg-status-completed' :
+                                                            run.status === 'running' ? 'bg-status-review' :
+                                                            'bg-status-draft'
+                                                        }`}></span>
+                                                        {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
+                                                    </div>
+                                                </div>
+                                                <span className="text-primary">→</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'history' && (
+                        <div>
+                            <h3 className="text-xl font-semibold mb-6">Research History</h3>
+                            {runs.length === 0 ? (
+                                <div className="text-center py-12 text-text-secondary">
+                                    📋 No research runs yet for this property
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {runs.map((run, idx) => (
+                                        <details key={run.id} className="bg-white border border-border rounded-lg">
+                                            <summary className="cursor-pointer p-4 font-medium hover:bg-gray-50">
+                                                Run #{runs.length - idx} — {run.started?.slice(0, 10)} — {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
+                                            </summary>
+                                            <div className="p-4 border-t border-border space-y-3">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <div className="text-sm text-text-secondary">Started</div>
+                                                        <div className="font-medium">{run.started}</div>
+                                                    </div>
+                                                    {run.finished && (
+                                                        <div>
+                                                            <div className="text-sm text-text-secondary">Finished</div>
+                                                            <div className="font-medium">{run.finished}</div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-sm text-text-secondary">Status</div>
+                                                    <div className="font-medium">{run.status.charAt(0).toUpperCase() + run.status.slice(1)}</div>
+                                                </div>
+
+                                                {run.sources && run.sources.length > 0 && (
+                                                    <div>
+                                                        <div className="text-sm text-text-secondary">Sources</div>
+                                                        <div className="font-medium">{run.sources.join(', ')}</div>
+                                                    </div>
+                                                )}
+
+                                                {run.estimate && (
+                                                    <div className="bg-green-50 border border-green-200 rounded p-3">
+                                                        <div className="text-sm text-green-800 font-semibold">
+                                                            Estimated Value: {run.estimate.formatted}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {run.comparisons_count > 0 && (
+                                                    <div>
+                                                        <div className="text-sm text-text-secondary">Comparisons Found</div>
+                                                        <div className="font-medium">{run.comparisons_count} properties</div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </details>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'export' && (
+                        <div>
+                            <h3 className="text-xl font-semibold mb-6">Export Reports</h3>
+                            {!latest || latest.status !== 'completed' ? (
+                                <div className="text-center py-12">
+                                    <div className="text-yellow-600 mb-4">⚠️ Complete a research run to generate export reports</div>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-text-secondary mb-8">Export your property research data in multiple formats:</p>
+
+                                    <div className="grid grid-cols-3 gap-6 mb-8">
+                                        <div className="bg-white border border-border rounded-lg p-6">
+                                            <h4 className="text-lg font-semibold mb-2">📊 CSV</h4>
+                                            <p className="text-sm text-text-secondary mb-4">Spreadsheet format for analysis</p>
+                                            <button className="w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+                                                ⬇️ Download CSV
+                                            </button>
+                                        </div>
+
+                                        <div className="bg-white border border-border rounded-lg p-6">
+                                            <h4 className="text-lg font-semibold mb-2">📄 HTML</h4>
+                                            <p className="text-sm text-text-secondary mb-4">Readable web format</p>
+                                            <button className="w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+                                                ⬇️ Download HTML
+                                            </button>
+                                        </div>
+
+                                        <div className="bg-white border border-border rounded-lg p-6">
+                                            <h4 className="text-lg font-semibold mb-2">📗 Excel</h4>
+                                            <p className="text-sm text-text-secondary mb-4">Full data with multiple sheets</p>
+                                            <button className="w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+                                                ⬇️ Download Excel
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {latest.estimate && (
+                                        <div className="p-6 bg-white border border-border rounded-lg">
+                                            <h4 className="font-semibold mb-4">Report Preview</h4>
+                                            <div className="space-y-2 text-sm">
+                                                <p><strong>Estimated Asking Price:</strong> {latest.estimate.formatted}</p>
+                                                <p><strong>Based on:</strong> {latest.comparisons_count} comparable properties</p>
+                                                {latest.estimate.rate_per_sqft && (
+                                                    <p><strong>Median Rate:</strong> ₹{latest.estimate.rate_per_sqft.toLocaleString()}/sq ft</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ========================================
+        // MAIN APP COMPONENT
+        // ========================================
+        function App() {
+            const [currentPage, setCurrentPage] = useState('dashboard');
+            const [selectedProperty, setSelectedProperty] = useState(null);
+            const [properties, setProperties] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [theme, setTheme] = useState('light');
+
+            // Load properties on mount
+            useEffect(() => {
+                loadProperties();
+            }, []);
+
+            const loadProperties = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/properties`);
+                    const data = await response.json();
+                    setProperties(data);
+                } catch (error) {
+                    console.error('Failed to load properties:', error);
+                    // Continue with empty array if API not available
+                    setProperties([]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleNavigate = (page, propertyId = null) => {
+                setCurrentPage(page);
+                setSelectedProperty(propertyId);
+                window.scrollTo(0, 0);
+            };
+
+            const handleCreateProperty = async (formData) => {
+                try {
+                    // Create property
+                    const createResponse = await fetch(`${API_BASE}/properties`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+
+                    const { id } = await createResponse.json();
+
+                    // Start research
+                    await fetch(`${API_BASE}/research/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            property_id: id,
+                            sources: formData.sources
+                        })
+                    });
+
+                    // Reload properties and navigate to property page
+                    await loadProperties();
+                    handleNavigate('property', id);
+                } catch (error) {
+                    throw new Error('Failed to create property: ' + error.message);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="text-text-secondary">Loading GroundValue...</div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex min-h-screen">
+                    <Sidebar
+                        currentPage={currentPage}
+                        onNavigate={handleNavigate}
+                        theme={theme}
+                        onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                    />
+
+                    <main className="flex-1 ml-64">
+                        {currentPage === 'dashboard' && (
+                            <Dashboard
+                                properties={properties}
+                                onNavigate={handleNavigate}
+                            />
+                        )}
+
+                        {currentPage === 'new-research' && (
+                            <NewResearch
+                                onNavigate={handleNavigate}
+                                onCreate={handleCreateProperty}
+                            />
+                        )}
+
+                        {currentPage === 'property' && selectedProperty && (
+                            <PropertyWorkspace
+                                propertyId={selectedProperty}
+                                onNavigate={handleNavigate}
+                            />
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
