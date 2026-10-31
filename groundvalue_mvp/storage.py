@@ -11,12 +11,16 @@ def save(report, path=None):
             path = Path(__file__).parent / 'data' / 'reports.sqlite3'
     else:
         path = Path(path)
+    print(f"[DEBUG storage.save] Saving report to: {path}")
     path.parent.mkdir(parents=True,exist_ok=True)
     report=dict(report,report_id=uuid.uuid4().hex,created_at=datetime.now(timezone.utc).isoformat())
+    print(f"[DEBUG storage.save] Report ID: {report['report_id']}, Mode: {report.get('mode')}")
+    print(f"[DEBUG storage.save] Report has {len(report.get('comparisons', []))} comparisons")
     with closing(sqlite3.connect(path)) as db:
         db.execute('CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, created TEXT NOT NULL, mode TEXT NOT NULL, payload TEXT NOT NULL)')
         db.execute('INSERT INTO reports VALUES (?,?,?,?)',(report['report_id'],report['created_at'],report['mode'],json.dumps(report,allow_nan=False)))
         db.commit()
+    print(f"[DEBUG storage.save] Report saved successfully to database")
     return report
 
 def latest_live(path=None):

@@ -45,9 +45,14 @@ def runs(pid):
     with connect() as db: return [dict(r, snapshot=json.loads(r['snapshot']),input=json.loads(r['input'])) for r in db.execute('SELECT * FROM project_runs WHERE project_id=? ORDER BY started DESC',(pid,))]
 def record(pid,job,inputs):
     t=now();snapshot=json.dumps(job,default=str)
+    print(f"[DEBUG projects.record] Recording job {job['id']} for project {pid}")
+    print(f"[DEBUG projects.record] Job state: {job['state']}, has report: {bool(job.get('report'))}")
+    if job.get('report'):
+        print(f"[DEBUG projects.record] Report ID in job: {job['report'].get('report_id')}")
     with connect() as db:
         db.execute('INSERT INTO project_runs VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,updated=excluded.updated,snapshot=excluded.snapshot',(job['id'],pid,job['state'],t,t,json.dumps(inputs),snapshot))
         db.execute('UPDATE projects SET updated=? WHERE id=?',(t,pid))
+    print(f"[DEBUG projects.record] Job recorded successfully to database")
 
 def import_legacy():
     """Import only actual live reports; synthetic walkthroughs remain in legacy storage."""
