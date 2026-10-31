@@ -1,10 +1,17 @@
-import sqlite3,json,uuid
+import sqlite3,json,uuid,os,tempfile
 from contextlib import closing
 from datetime import datetime,timezone
 from pathlib import Path
 
 def save(report, path=None):
-    path=Path(path or Path(__file__).parent/'data'/'reports.sqlite3');path.parent.mkdir(parents=True,exist_ok=True)
+    if path is None:
+        if os.environ.get('STREAMLIT_SHARING_MODE') or not os.access(Path(__file__).parent, os.W_OK):
+            path = Path(tempfile.gettempdir()) / 'groundvalue_reports.sqlite3'
+        else:
+            path = Path(__file__).parent / 'data' / 'reports.sqlite3'
+    else:
+        path = Path(path)
+    path.parent.mkdir(parents=True,exist_ok=True)
     report=dict(report,report_id=uuid.uuid4().hex,created_at=datetime.now(timezone.utc).isoformat())
     with closing(sqlite3.connect(path)) as db:
         db.execute('CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, created TEXT NOT NULL, mode TEXT NOT NULL, payload TEXT NOT NULL)')
@@ -13,7 +20,13 @@ def save(report, path=None):
     return report
 
 def latest_live(path=None):
-    path=Path(path or Path(__file__).parent/'data'/'reports.sqlite3')
+    if path is None:
+        if os.environ.get('STREAMLIT_SHARING_MODE') or not os.access(Path(__file__).parent, os.W_OK):
+            path = Path(tempfile.gettempdir()) / 'groundvalue_reports.sqlite3'
+        else:
+            path = Path(__file__).parent / 'data' / 'reports.sqlite3'
+    else:
+        path = Path(path)
     if not path.exists():return None
     with closing(sqlite3.connect(path)) as db:
         try:

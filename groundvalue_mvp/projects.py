@@ -1,9 +1,15 @@
 """Persistent project/run metadata alongside the existing evidence database."""
-import sqlite3,json,uuid
+import sqlite3,json,uuid,os,tempfile
 from pathlib import Path
 from contextlib import contextmanager,closing
 from datetime import datetime,timezone
-DB=Path(__file__).parent/'data/reports.sqlite3'
+
+# Use writable temp directory for Streamlit Cloud
+if os.environ.get('STREAMLIT_SHARING_MODE') or not os.access(Path(__file__).parent, os.W_OK):
+    DB = Path(tempfile.gettempdir()) / 'groundvalue_reports.sqlite3'
+else:
+    DB = Path(__file__).parent / 'data' / 'reports.sqlite3'
+    DB.parent.mkdir(parents=True, exist_ok=True)
 def now(): return datetime.now(timezone.utc).isoformat()
 @contextmanager
 def connect():
