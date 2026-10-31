@@ -1,0 +1,17 @@
+{
+  "name": "groundvalue",
+  "version": "1.0.0",
+  "description": "Property research and price estimation platform for Bengaluru real estate",
+  "scripts": {
+    "dev": "python3 -m http.server 8080 --directory frontend",
+    "build": "echo 'Static site - no build needed'"
+  },
+  "keywords": [
+    "property",
+    "real-estate",
+    "bengaluru",
+    "valuation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
