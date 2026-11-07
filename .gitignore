@@ -35,3 +35,4 @@ logs/
 *.tmp
 .cache/
 .vercel
+.env*

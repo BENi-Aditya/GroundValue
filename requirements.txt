@@ -1,0 +1,5 @@
+Flask>=3.1,<4
+waitress>=3,<4
+requests>=2.32,<3
+numpy>=2,<3
+vercel-blob==0.5.1

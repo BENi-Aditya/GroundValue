@@ -1,43 +1,5 @@
 {
   "version": 2,
-  "name": "groundvalue",
-  "builds": [
-    {
-      "src": "frontend/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "groundvalue_mvp/landing/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/landing/(.*)",
-      "dest": "/groundvalue_mvp/landing/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/$1"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        }
-      ]
-    }
-  ]
+  "builds": [{"src":"api/index.py","use":"@vercel/python","config":{"includeFiles":["groundvalue_mvp/**"],"maxDuration":120}}],
+  "routes": [{"src":"/(.*)","dest":"api/index.py"}]
 }

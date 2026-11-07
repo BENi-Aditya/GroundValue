@@ -1034,10 +1034,12 @@
                         body: JSON.stringify(formData)
                     });
 
-                    const { id } = await createResponse.json();
+                    const created = await createResponse.json();
+                    if (!createResponse.ok) throw new Error(created.error || 'Property could not be saved');
+                    const { id } = created;
 
                     // Start research
-                    await fetch(`${API_BASE}/research/start`, {
+                    const startResponse = await fetch(`${API_BASE}/research/start`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1045,6 +1047,9 @@
                             sources: formData.sources
                         })
                     });
+
+                    const started = await startResponse.json();
+                    if (!startResponse.ok) throw new Error(started.error || 'Research could not start');
 
                     // Reload properties and navigate to property page
                     await loadProperties();

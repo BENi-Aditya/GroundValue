@@ -1,3 +1,5 @@
+> **Updated 7 November:** The default app has moved off Streamlit. Run `bash start.sh` or `npm run dev`, then open http://localhost:8080/app. See [WEB_MIGRATION.md](WEB_MIGRATION.md) for current instructions. The older setup below is retained for reference.
+
 # 🚀 GroundValue - Complete Setup & Launch Guide
 
 ## ✅ Implementation Complete!

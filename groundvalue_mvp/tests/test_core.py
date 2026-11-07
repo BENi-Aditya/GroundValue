@@ -17,7 +17,7 @@ class EvidenceTests(unittest.TestCase):
  def test_explicit_sublocalities_only(self):
   for place in ['Electronic City Phase I','Kammasandra, Electronic City','Phase II, Electronic City','Electronic City (Neeladri Nagar)']:
    self.assertTrue(within_locality(place,'Electronic City'))
-  for place in ['Near Electronic City','Electronic City Phase III','Whitefield','Electronic City Road']:
+  for place in ['Near Electronic City','Electronic City Phase III','Whitefield','Electronic City Road','Attibele','Begur','Singasandra','Bommanahalli']:
    self.assertFalse(within_locality(place,'Electronic City'))
  def test_real_source_labels_are_normalized_without_changing_area_basis(self):
   rows=observations()[:5]

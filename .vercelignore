@@ -1,0 +1,14 @@
+.git
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.env
+**/.env.*
+**/data
+**/*.sqlite3
+**/*.db
+node_modules
+frontend/node_modules
+frontend
+pitch
+.DS_Store

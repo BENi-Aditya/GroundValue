@@ -3,20 +3,18 @@ Flask API endpoints to serve data to React frontend.
 Wraps existing Streamlit backend functionality.
 """
 from flask import Flask, jsonify, request
-from flask_cors import CORS
-import json
+import json,os
 import projects
 from tinyfish_client import load_key
 from jobs import get_manager
-from core import BASES
+from core import BASES, Property
 from research import SOURCES
 from report import rupees
 
 app = Flask(__name__)
-CORS(app)
 
 # Initialize legacy data
-projects.import_legacy()
+if not os.environ.get('VERCEL'): projects.import_legacy()
 
 
 @app.route('/api/properties', methods=['GET'])
@@ -65,14 +63,14 @@ def get_property(pid):
         return jsonify({'error': 'Property not found'}), 404
 
     history = projects.runs(pid)
-    details = json.loads(prop['details'])
+    details = prop['details']
 
     # Get latest research data
     latest_research = None
     if history:
         latest = history[0]
         snapshot = latest['snapshot']
-        report = snapshot.get('report', {})
+        report = snapshot.get('report') or {}
 
         estimate = None
         if report.get('estimate'):
@@ -80,12 +78,12 @@ def get_property(pid):
             estimate = {
                 'value': est['value'],
                 'formatted': rupees(est['value']),
-                'min_value': est.get('min_value'),
-                'max_value': est.get('max_value'),
-                'rate_per_sqft': est.get('rate_per_sqft')
+                'min_value': est.get('low'),
+                'max_value': est.get('high'),
+                'rate_per_sqft': est.get('median_rate')
             }
 
-        comparisons = report.get('comparisons', [])
+        comparisons = [r for r in report.get('records', []) if r.get('included')]
 
         latest_research = {
             'id': latest['id'],
@@ -117,7 +115,7 @@ def get_property_runs(pid):
     result = []
     for run in history:
         snapshot = run['snapshot']
-        report = snapshot.get('report', {})
+        report = snapshot.get('report') or {}
 
         estimate = None
         if report.get('estimate'):
@@ -134,7 +132,7 @@ def get_property_runs(pid):
             'finished': run.get('finished'),
             'estimate': estimate,
             'sources': list(snapshot.get('sources', {}).keys()),
-            'comparisons_count': len(report.get('comparisons', []))
+            'comparisons_count': report.get('accepted_count', 0)
         })
 
     return jsonify(result)
@@ -143,9 +141,11 @@ def get_property_runs(pid):
 @app.route('/api/properties', methods=['POST'])
 def create_property():
     """Create new property."""
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Send a JSON object'}), 400
 
-    if not data.get('name'):
+    if not isinstance(data.get('name'),str) or not 1 <= len(data['name'].strip()) <= 180:
         return jsonify({'error': 'Property name required'}), 400
 
     details = {
@@ -156,6 +156,10 @@ def create_property():
         'notes': data.get('notes', '')
     }
 
+    try:
+        Property(**{k: v for k, v in details.items() if k in Property.__dataclass_fields__}).validate()
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
     pid = projects.create(data['name'], details)
 
     return jsonify({
@@ -167,23 +171,40 @@ def create_property():
 @app.route('/api/research/start', methods=['POST'])
 def start_research():
     """Start research for a property."""
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Send a JSON object'}), 400
 
     pid = data.get('property_id')
     sources = data.get('sources', [])
 
-    if not pid:
+    if not isinstance(pid,str) or not pid:
         return jsonify({'error': 'Property ID required'}), 400
 
-    if not sources:
-        return jsonify({'error': 'At least one source required'}), 400
+    if not isinstance(sources, list) or not 1 <= len(sources) <= 2 or any(
+        not isinstance(source, str) or source not in SOURCES for source in sources
+    ) or len(set(sources)) != len(sources):
+        return jsonify({'error': 'Choose one or two distinct supported sources'}), 400
+
+    prop = projects.get(pid)
+    if not prop:
+        return jsonify({'error': 'Property not found'}), 404
+    details = prop['details']
+    try:
+        target = Property(**{k: v for k, v in details.items() if k in Property.__dataclass_fields__})
+        target.validate()
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
 
     key = load_key()
     if not key:
         return jsonify({'error': 'TinyFish API key not configured'}), 500
 
     manager = get_manager()
-    job_id = manager.start(pid, sources, key)
+    try:
+        job_id = manager.start(target, sources, key, project_id=pid)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 409
 
     return jsonify({
         'job_id': job_id,
@@ -222,5 +243,5 @@ def get_config():
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port, debug=True)

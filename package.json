@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Property research and price estimation platform for Bengaluru real estate",
   "scripts": {
-    "dev": "python3 -m http.server 8080 --directory frontend",
-    "build": "echo 'Static site - no build needed'"
+    "dev": "bash start.sh",
+    "build": "python3 -m compileall -q groundvalue_mvp/web.py groundvalue_mvp/api.py groundvalue_mvp/review.py groundvalue_mvp/model_lab.py"
   },
   "keywords": [
     "property",

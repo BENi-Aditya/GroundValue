@@ -26,7 +26,7 @@ class ProjectTests(unittest.TestCase):
  def test_dashboard_and_form(self):
   app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py'))
   app.query_params['view']='app';app.run();self.assertFalse(app.exception)
-  self.assertIn('Your Properties',[x.value for x in app.title])
+  self.assertIn('Your Property Research',[x.value for x in app.title])
   app.button(key='nav_New Research').click().run();self.assertFalse(app.exception)
   self.assertIn('Add Property Details',[x.value for x in app.title])
   self.assertFalse(any('Sample' in str(x.value) for x in app.radio))

@@ -1,19 +1,18 @@
 """Persistent project/run metadata alongside the existing evidence database."""
-import sqlite3,json,uuid,os,tempfile
+import sqlite3,json,uuid,os
+from contextvars import ContextVar
 from pathlib import Path
 from contextlib import contextmanager,closing
 from datetime import datetime,timezone
-
-# Use writable temp directory for Streamlit Cloud
-if os.environ.get('STREAMLIT_SHARING_MODE') or not os.access(Path(__file__).parent, os.W_OK):
-    DB = Path(tempfile.gettempdir()) / 'groundvalue_reports.sqlite3'
-else:
-    DB = Path(__file__).parent / 'data' / 'reports.sqlite3'
-    DB.parent.mkdir(parents=True, exist_ok=True)
+DB=Path(os.environ.get('GROUNDVALUE_DB',str(Path(__file__).parent/'data/reports.sqlite3')))
+REQUEST_DB=ContextVar('workspace_db',default=None)
+def db_path(): return REQUEST_DB.get() or DB
 def now(): return datetime.now(timezone.utc).isoformat()
 @contextmanager
 def connect():
-    with closing(sqlite3.connect(DB,timeout=20)) as db:
+    path=db_path()
+    path.parent.mkdir(parents=True,exist_ok=True)
+    with closing(sqlite3.connect(path,timeout=20)) as db:
         db.row_factory=sqlite3.Row
         db.execute('CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,name TEXT,details TEXT,created TEXT,updated TEXT,archived INTEGER DEFAULT 0)')
         db.execute('CREATE TABLE IF NOT EXISTS project_runs(id TEXT PRIMARY KEY,project_id TEXT,status TEXT,started TEXT,updated TEXT,input TEXT,snapshot TEXT)')
@@ -45,14 +44,9 @@ def runs(pid):
     with connect() as db: return [dict(r, snapshot=json.loads(r['snapshot']),input=json.loads(r['input'])) for r in db.execute('SELECT * FROM project_runs WHERE project_id=? ORDER BY started DESC',(pid,))]
 def record(pid,job,inputs):
     t=now();snapshot=json.dumps(job,default=str)
-    print(f"[DEBUG projects.record] Recording job {job['id']} for project {pid}")
-    print(f"[DEBUG projects.record] Job state: {job['state']}, has report: {bool(job.get('report'))}")
-    if job.get('report'):
-        print(f"[DEBUG projects.record] Report ID in job: {job['report'].get('report_id')}")
     with connect() as db:
         db.execute('INSERT INTO project_runs VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,updated=excluded.updated,snapshot=excluded.snapshot',(job['id'],pid,job['state'],t,t,json.dumps(inputs),snapshot))
         db.execute('UPDATE projects SET updated=? WHERE id=?',(t,pid))
-    print(f"[DEBUG projects.record] Job recorded successfully to database")
 
 def import_legacy():
     """Import only actual live reports; synthetic walkthroughs remain in legacy storage."""

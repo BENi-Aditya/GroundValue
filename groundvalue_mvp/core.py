@@ -6,7 +6,7 @@ from math import isfinite
 import re
 
 BASES = ('Super built-up', 'Built-up', 'Carpet')
-METHOD = 'comparable-asking-v3-source-label-normalization'
+METHOD = 'comparable-asking-v4-explicit-locality'
 
 def text(value):
     return str(value or '').strip()
@@ -27,8 +27,7 @@ def within_locality(value, target):
             'electroniccityphase2','electroniccityphaseii','phase1electroniccity',
             'phaseielectroniccity','phase2electroniccity','phaseiielectroniccity',
             'electroniccity1stphase','electroniccity2ndphase',
-            'konappanaagrahara','konappanagrahara','doddathoguru','singasandra',
-            'begur','huskur','bommanahalli','attibele'}  # Common Electronic City sub-localities
+            }  # Nearby neighborhoods alone do not establish an Electronic City match.
     outer=re.sub(r'\([^)]*\)','',text(value))
     return any(locality(part) in labels for part in outer.split(','))
 

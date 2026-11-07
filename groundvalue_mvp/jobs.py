@@ -2,7 +2,7 @@
 from copy import deepcopy
 from datetime import datetime,timezone
 from threading import Event, Lock, Thread
-import time
+import time,os
 import uuid
 from functools import lru_cache
 from research import research
@@ -11,6 +11,9 @@ from tinyfish_client import TinyFish
 
 @lru_cache(maxsize=1)
 def get_manager():
+    if os.environ.get('VERCEL'):
+        from cloud_jobs import CloudResearchJobs
+        return CloudResearchJobs()
     return ResearchJobs()
 
 class ResearchJobs:
@@ -67,25 +70,15 @@ class ResearchJobs:
 
     def _work(self,target,names,key):
         try:
-            print(f"[DEBUG] Starting research for target: {target.bedrooms}BHK, {target.sqft}sqft")
             result=self._runner(target,names,self._client_factory(key),notify=self._progress,cancel=self._cancel)
-            print(f"[DEBUG] Research completed. Result has {len(result.get('comparisons', []))} comparisons")
-            print(f"[DEBUG] Result keys: {list(result.keys())}")
             report=self._saver(result)
-            print(f"[DEBUG] Report saved. Report ID: {report.get('report_id')}")
-            print(f"[DEBUG] Report keys: {list(report.keys())}")
             with self._lock:
                 failed=bool(result.get('jobs')) and all(j.get('status')!='completed' for j in result['jobs'])
                 self._job.update(state='stopped' if self._cancel.is_set() else ('failed' if failed else 'completed'),
                                  report=report,elapsed_seconds=int(time.time()-self._job['started']))
-                print(f"[DEBUG] Job state: {self._job['state']}, has report: {bool(self._job.get('report'))}")
                 self._persist()
-                print(f"[DEBUG] Job persisted to database")
-        except Exception as e:
+        except Exception:
             # Do not echo request objects, credentials or raw provider responses.
-            print(f"[ERROR] Research failed with exception: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
             with self._lock:
                 self._job.update(state='failed',error='Research could not finish. Check the activity log and provider run before retrying.',
                                  elapsed_seconds=int(time.time()-self._job['started']))
